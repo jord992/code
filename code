@@ -1,0 +1,1316 @@
+namespace Snake
+{
+    class Circle
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+
+        public Circle ()
+        {
+            X = 0;
+            Y = 0;
+        }
+    }
+}
+
+
+using System;
+using System.Media;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using Snake;
+using Menu;
+using System.IO;
+
+namespace Snake
+{
+
+    public partial class Form1 : Form
+    {
+        private List<Circle> Snake = new List<Circle>();
+        private Circle food = new Circle();
+
+        public Form1()
+        {
+            InitializeComponent();
+
+            //Set settings to default
+            new Settings();
+
+
+            //Set game speed and start timer
+            gameTimer.Interval = 1200 / Settings.Speed;
+            gameTimer.Tick += UpdateScreen;
+            gameTimer.Start();
+
+            //Start New game
+            StartGame();
+        }
+
+        private void StartGame()
+        {
+            lblGameOver.Visible = false;
+
+            //Set settings to default
+            new Settings();
+
+            //Create new player object
+            Snake.Clear();
+            Circle head = new Circle();
+            head.X = 20;
+            head.Y = 6;
+            Snake.Add(head);
+
+
+            lblScore.Text = Settings.Score.ToString();
+            GenerateFood();
+
+        }
+
+        //Place random food object
+        private void GenerateFood()
+        {
+            int maxXPos = pbCanvas.Size.Width / Settings.Width;
+            int maxYPos = pbCanvas.Size.Height / Settings.Height;
+
+            Random random = new Random();
+            food = new Circle();
+            food.X = random.Next(1, maxXPos);
+            food.Y = random.Next(1, maxYPos);
+        }
+
+
+        private void UpdateScreen(object sender, EventArgs e)
+        {
+            //Check for Game Over
+            if (Settings.GameOver)
+            {
+                //Check if Enter is pressed
+                if (Input.KeyPressed(Keys.Enter))
+                {
+                    //Change the status of the Enter Key Pressed to false to avoid entering into the loop
+                    Input.ChangeState(Keys.Enter, false);
+
+                    //Launches and QuizInterface window and the result of the page is stored in DialogResult object
+                    DialogResult dr = (new QuizInterface()).ShowDialog();
+
+                    //Restart the game if the response from QuizInterface window is OK i.e. user entered all the answers correctly
+                    if (dr.Equals(DialogResult.OK))
+                    {
+                        StartGame();
+                    }
+                }
+            }
+            else
+            {
+                if (Input.KeyPressed(Keys.Right) && Settings.direction != Direction.Left)
+                    Settings.direction = Direction.Right;
+                else if (Input.KeyPressed(Keys.Left) && Settings.direction != Direction.Right)
+                    Settings.direction = Direction.Left;
+                else if (Input.KeyPressed(Keys.Up) && Settings.direction != Direction.Down)
+                    Settings.direction = Direction.Up;
+                else if (Input.KeyPressed(Keys.Down) && Settings.direction != Direction.Up)
+                    Settings.direction = Direction.Down;
+
+                MovePlayer();
+            }
+
+            pbCanvas.Invalidate();
+
+        }
+
+        private void pbCanvas_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics canvas = e.Graphics;
+
+            if (!Settings.GameOver)
+            {
+                //Set colour of snake
+                Brush snakeColour;
+
+                //Draw snake
+                for (int i = 0; i < Snake.Count; i++)
+                {
+
+                    if (i == 0)
+                        snakeColour = Brushes.Yellow;     //Draw head
+                    else
+                        snakeColour = Brushes.Pink;    //Rest of body
+
+                    //Draw snake
+                    canvas.FillEllipse(snakeColour,
+                        new Rectangle(Snake[i].X * Settings.Width,
+                                      Snake[i].Y * Settings.Height,
+                                      Settings.Width, Settings.Height));
+
+
+                    //Draw Food
+                    canvas.FillEllipse(Brushes.Red,
+                        new Rectangle(food.X * Settings.Width,
+                             food.Y * Settings.Height, Settings.Width, Settings.Height));
+
+                }
+            }
+            else
+            {
+                string gameOver = "Game over \nYour final score is: " + Settings.Score + "\nPress Enter to try again";
+                lblGameOver.Text = gameOver;
+                lblGameOver.Visible = true;
+            }
+        }
+
+
+        private void MovePlayer()
+        {
+            for (int i = Snake.Count - 1; i >= 0; i--)
+            {
+                //Move head
+                if (i == 0)
+                {
+                    switch (Settings.direction)
+                    {
+                        case Direction.Right:
+                            Snake[i].X++;
+                            break;
+                        case Direction.Left:
+                            Snake[i].X--;
+                            break;
+                        case Direction.Up:
+                            Snake[i].Y--;
+                            break;
+                        case Direction.Down:
+                            Snake[i].Y++;
+                            break;
+                    }
+
+
+                    //Get maximum X and Y Pos
+                    int maxXPos = pbCanvas.Size.Width / Settings.Width;
+                    int maxYPos = pbCanvas.Size.Height / Settings.Height;
+
+                    //Detect collission with game borders.
+                    if (Snake[i].X < 0 || Snake[i].Y < 0
+                        || Snake[i].X >= maxXPos || Snake[i].Y >= maxYPos)
+                    {
+                        Die();
+                    }
+
+
+                    //Detect collission with body
+                    for (int j = 1; j < Snake.Count; j++)
+                    {
+                        if (Snake[i].X == Snake[j].X &&
+                           Snake[i].Y == Snake[j].Y)
+                        {
+                            Die();
+                        }
+                    }
+
+                    //Detect collision with food piece
+                    if (Snake[0].X == food.X && Snake[0].Y == food.Y)
+                    {
+                        Eat();
+                    }
+
+                }
+                else
+                {
+                    //Move body
+                    Snake[i].X = Snake[i - 1].X;
+                    Snake[i].Y = Snake[i - 1].Y;
+                }
+            }
+        }
+
+        private void Eat()
+        {
+            //Add circle to body 
+            Circle food = new Circle();
+            food.X = Snake[Snake.Count - 1].X;
+            food.Y = Snake[Snake.Count - 1].Y;
+
+            Snake.Add(food);
+
+            //Update score
+            Settings.Score += Settings.Points;
+            lblScore.Text = Settings.Score.ToString();
+
+            GenerateFood();
+
+        }
+
+        private void Die()
+        {
+            Settings.GameOver = true;
+            Update_Scores();
+        }
+
+
+        private void Form1_KeyDown(object sender, KeyEventArgs e)
+        {
+            Input.ChangeState(e.KeyCode, true);
+        }
+
+        private void Form1_KeyUp(object sender, KeyEventArgs e)
+        {
+            Input.ChangeState(e.KeyCode, false);
+        }
+        SoundPlayer My_JukeBox = new SoundPlayer(@"C:\Users\Sean\Documents\School work\Year 13\Computing\Snake practice run\Snake\Resources\The Great Divide.wav");
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+
+        }
+
+
+
+
+        public void Update_Scores()
+        // sends the score when the game ends to the Finalscore variable along with the PlayerName variable and then writes them onto The Highscores.txt file (if the file dosent exist it creates one)
+        {
+
+            string path = (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/HighScores.txt");
+            string FinalScore = "  score : " + Settings.Score.ToString();
+
+            if (File.Exists(path))
+            {
+                StreamWriter sw;
+                sw = File.AppendText(path);
+                sw.WriteLine(FinalScore);
+                sw.Close();
+            }
+            else
+            {
+                StreamWriter sw;
+                sw = File.CreateText(path);
+                sw.Close();
+                sw = File.AppendText(path);
+                sw.WriteLine(FinalScore);
+                sw.Close();
+            }
+
+        }
+
+
+    }
+}
+
+
+namespace Snake
+{
+    partial class Form1
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
+            this.pbCanvas = new System.Windows.Forms.PictureBox();
+            this.label1 = new System.Windows.Forms.Label();
+            this.lblScore = new System.Windows.Forms.Label();
+            this.gameTimer = new System.Windows.Forms.Timer(this.components);
+            this.lblGameOver = new System.Windows.Forms.Label();
+            ((System.ComponentModel.ISupportInitialize)(this.pbCanvas)).BeginInit();
+            this.SuspendLayout();
+            // 
+            // pbCanvas
+            // 
+            this.pbCanvas.BackColor = System.Drawing.Color.DarkSalmon;
+            this.pbCanvas.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("pbCanvas.BackgroundImage")));
+            this.pbCanvas.Location = new System.Drawing.Point(13, 13);
+            this.pbCanvas.Name = "pbCanvas";
+            this.pbCanvas.Size = new System.Drawing.Size(432, 424);
+            this.pbCanvas.TabIndex = 0;
+            this.pbCanvas.TabStop = false;
+           
+            this.pbCanvas.Paint += new System.Windows.Forms.PaintEventHandler(this.pbCanvas_Paint);
+            // 
+            // label1
+            // 
+            this.label1.BackColor = System.Drawing.Color.Transparent;
+            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 24F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label1.Image = ((System.Drawing.Image)(resources.GetObject("label1.Image")));
+            this.label1.ImageAlign = System.Drawing.ContentAlignment.TopLeft;
+            this.label1.Location = new System.Drawing.Point(454, 10);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(98, 38);
+            this.label1.TabIndex = 1;
+            this.label1.Text = "      ";
+            
+            // 
+            // lblScore
+            // 
+            this.lblScore.AutoSize = true;
+            this.lblScore.BackColor = System.Drawing.Color.Transparent;
+            this.lblScore.Font = new System.Drawing.Font("Microsoft Sans Serif", 24F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblScore.ForeColor = System.Drawing.Color.Yellow;
+            this.lblScore.Location = new System.Drawing.Point(570, 5);
+            this.lblScore.Name = "lblScore";
+            this.lblScore.Size = new System.Drawing.Size(0, 37);
+            this.lblScore.TabIndex = 2;
+            // 
+            // lblGameOver
+            // 
+            this.lblGameOver.AutoSize = true;
+            this.lblGameOver.Font = new System.Drawing.Font("Microsoft Sans Serif", 24F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblGameOver.Location = new System.Drawing.Point(67, 45);
+            this.lblGameOver.Name = "lblGameOver";
+            this.lblGameOver.Size = new System.Drawing.Size(102, 37);
+            this.lblGameOver.TabIndex = 3;
+            this.lblGameOver.Text = "label2";
+            this.lblGameOver.Visible = false;
+            // 
+            // Form1
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BackColor = System.Drawing.SystemColors.GradientInactiveCaption;
+            this.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("$this.BackgroundImage")));
+            this.ClientSize = new System.Drawing.Size(664, 454);
+            this.Controls.Add(this.lblGameOver);
+            this.Controls.Add(this.lblScore);
+            this.Controls.Add(this.label1);
+            this.Controls.Add(this.pbCanvas);
+            this.Name = "Form1";
+            this.Text = "Snake Game";
+            this.Load += new System.EventHandler(this.Form1_Load);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.Form1_KeyDown);
+            this.KeyUp += new System.Windows.Forms.KeyEventHandler(this.Form1_KeyUp);
+            ((System.ComponentModel.ISupportInitialize)(this.pbCanvas)).EndInit();
+            this.ResumeLayout(false);
+            this.PerformLayout();
+
+        }
+
+        #endregion
+
+        private System.Windows.Forms.PictureBox pbCanvas;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.Label lblScore;
+        private System.Windows.Forms.Timer gameTimer;
+        private System.Windows.Forms.Label lblGameOver;
+    }
+}
+
+
+
+using System.Collections;
+using System.Windows.Forms;
+
+namespace Snake
+{
+    internal class Input
+    {
+        //Load list of available Keyboard buttons
+        private static Hashtable keyTable = new Hashtable();
+
+        //Perform a check to see if a particular button is pressed.
+        public static bool KeyPressed(Keys key)
+        {
+            if (keyTable[key] == null)
+            {
+                return false;
+            }
+
+            return (bool) keyTable[key];
+        }
+
+        //Detect if a keyboard button is pressed
+        public static void ChangeState(Keys key, bool state)
+        {
+            keyTable[key] = state;
+        }
+    }
+}
+ 
+ 
+ using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using Snake;
+using Menu;
+using System.IO;
+
+namespace Menu
+
+    {
+    public partial class Menu : Form
+    {
+        public Menu()
+        {
+            InitializeComponent();
+        }
+        private void Menu_Click(object sender, EventArgs e)
+        {
+           
+        }
+        private void Menu_Load(object sender, EventArgs e)
+        {
+
+            Update_HighScores();
+        }
+
+        public void Update_HighScores()
+        {
+            // creates a variabe called path that contains the location of the textfile
+            string path = (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "/HighScores.txt");
+            if (File.Exists(path))
+            {
+                string Line2;
+                StreamReader file = null;
+                file = new StreamReader(path);
+                string[] HighScores = new string[1000];
+                int i = 0;
+                while ((Line2 = file.ReadLine()) != null)
+                {
+                    HighScores[i] = Line2;
+                    i++;
+                }
+                Array.Sort(HighScores);
+                for (int j = 0; j <= 999; j++)
+                {
+                    if (HighScores[j] != null)
+                    {
+                        txtHighScores.Text = HighScores[j] + Environment.NewLine + txtHighScores.Text;
+
+                        file.Dispose();
+                    }
+                }
+            }
+
+        }
+
+        private void txtName_TextChanged(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void btnPlay_Click(object sender, EventArgs e)
+        {
+            (new Form1()).ShowDialog();
+        }
+
+        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
+        {
+          
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void button1_Click_1(object sender, EventArgs e)
+        {
+            Update_HighScores();
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void lblTitle_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void toolTip1_Popup(object sender, PopupEventArgs e)
+        {
+
+        }
+
+        private void button1_Click_2(object sender, EventArgs e)
+        {
+
+        }
+    }
+}
+
+
+namespace Menu
+{
+    partial class Menu
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            this.btnPlay = new System.Windows.Forms.Button();
+            this.lblTitle = new System.Windows.Forms.Label();
+            this.lblName = new System.Windows.Forms.Label();
+            this.txtName = new System.Windows.Forms.TextBox();
+            this.txtHighScores = new System.Windows.Forms.TextBox();
+            this.Refresh = new System.Windows.Forms.Button();
+            this.HighScores = new System.Windows.Forms.Label();
+            this.Help = new System.Windows.Forms.Button();
+            this.SuspendLayout();
+            // 
+            // btnPlay
+            // 
+            this.btnPlay.Location = new System.Drawing.Point(45, 131);
+            this.btnPlay.Name = "btnPlay";
+            this.btnPlay.Size = new System.Drawing.Size(75, 23);
+            this.btnPlay.TabIndex = 0;
+            this.btnPlay.Text = "Play";
+            this.btnPlay.UseVisualStyleBackColor = true;
+            this.btnPlay.Click += new System.EventHandler(this.btnPlay_Click);
+            // 
+            // lblTitle
+            // 
+            this.lblTitle.AutoSize = true;
+            this.lblTitle.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblTitle.Location = new System.Drawing.Point(2, 9);
+            this.lblTitle.Name = "lblTitle";
+            this.lblTitle.Size = new System.Drawing.Size(300, 17);
+            this.lblTitle.TabIndex = 1;
+            this.lblTitle.Text = "Snake Game with Business Studies Quiz";
+            this.lblTitle.Click += new System.EventHandler(this.lblTitle_Click);
+            // 
+            // lblName
+            // 
+            this.lblName.AutoSize = true;
+            this.lblName.Location = new System.Drawing.Point(75, 74);
+            this.lblName.Name = "lblName";
+            this.lblName.Size = new System.Drawing.Size(35, 13);
+            this.lblName.TabIndex = 2;
+            this.lblName.Text = "Name";
+            // 
+            // txtName
+            // 
+            this.txtName.Location = new System.Drawing.Point(116, 71);
+            this.txtName.Name = "txtName";
+            this.txtName.Size = new System.Drawing.Size(100, 20);
+            this.txtName.TabIndex = 3;
+            this.txtName.TextChanged += new System.EventHandler(this.txtName_TextChanged);
+            // 
+            // txtHighScores
+            // 
+            this.txtHighScores.Location = new System.Drawing.Point(20, 192);
+            this.txtHighScores.Multiline = true;
+            this.txtHighScores.Name = "txtHighScores";
+            this.txtHighScores.ReadOnly = true;
+            this.txtHighScores.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.txtHighScores.Size = new System.Drawing.Size(259, 129);
+            this.txtHighScores.TabIndex = 8;
+            // 
+            // Refresh
+            // 
+            this.Refresh.Location = new System.Drawing.Point(164, 131);
+            this.Refresh.Name = "Refresh";
+            this.Refresh.Size = new System.Drawing.Size(75, 23);
+            this.Refresh.TabIndex = 11;
+            this.Refresh.Text = "Refresh";
+            this.Refresh.UseVisualStyleBackColor = true;
+            this.Refresh.Click += new System.EventHandler(this.button1_Click_1);
+            // 
+            // HighScores
+            // 
+            this.HighScores.AutoSize = true;
+            this.HighScores.Location = new System.Drawing.Point(113, 170);
+            this.HighScores.Name = "HighScores";
+            this.HighScores.Size = new System.Drawing.Size(65, 13);
+            this.HighScores.TabIndex = 12;
+            this.HighScores.Text = "High Scores";
+            this.HighScores.Click += new System.EventHandler(this.label1_Click);
+            // 
+            // Help
+            // 
+            this.Help.Location = new System.Drawing.Point(5, 29);
+            this.Help.Name = "Help";
+            this.Help.Size = new System.Drawing.Size(44, 23);
+            this.Help.TabIndex = 13;
+            this.Help.Text = "Help";
+            this.Help.UseVisualStyleBackColor = true;
+            this.Help.Click += new System.EventHandler(this.button1_Click_2);
+            // 
+            // Menu
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BackColor = System.Drawing.SystemColors.MenuHighlight;
+            this.ClientSize = new System.Drawing.Size(304, 333);
+            this.Controls.Add(this.Help);
+            this.Controls.Add(this.HighScores);
+            this.Controls.Add(this.Refresh);
+            this.Controls.Add(this.txtHighScores);
+            this.Controls.Add(this.txtName);
+            this.Controls.Add(this.lblName);
+            this.Controls.Add(this.lblTitle);
+            this.Controls.Add(this.btnPlay);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow;
+            this.Name = "Menu";
+            this.Text = "Menu";
+            this.Load += new System.EventHandler(this.Menu_Load);
+            this.ResumeLayout(false);
+            this.PerformLayout();
+
+        }
+
+        #endregion
+
+        private System.Windows.Forms.Button btnPlay;
+        private System.Windows.Forms.Label lblTitle;
+        private System.Windows.Forms.Label lblName;
+        private System.Windows.Forms.TextBox txtName;
+        private System.Windows.Forms.TextBox txtHighScores;
+        private System.Windows.Forms.Button Refresh;
+        private System.Windows.Forms.Label HighScores;
+        private System.Windows.Forms.Button Help;
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Forms;
+using Menu;
+
+namespace Menu
+{
+    static class Program
+    {
+        /// <summary>
+        /// The main entry point for the application.
+        /// </summary>
+        [STAThread]
+        static void Main()
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new Menu());
+        }
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using Snake;
+using Menu;
+
+namespace Snake
+{
+    public partial class QuizInterface : Form
+    {
+        //Orgainised List of class to store all the questions, options and answers
+        List<quizQuestions> quesList = new List<quizQuestions>();
+
+        //This will store the random series of array of number list (0-Max. No.of ques)
+        int[] values;
+
+        public QuizInterface()
+        {
+            InitializeComponent();
+            
+            //Initialize the components on the page
+            reloadQuiz();
+        }
+
+        void reloadQuiz()
+        {
+            //Load the questions, answer, options into organised list object
+            loadQuestions();
+
+            //Read the questions from list and set the values of random questions on the page
+            fillQuestionsOnForm();
+
+            //Reset all the Radio Buttons/Option Buttons on the page to false.
+            rdbQ1Opt1.Checked = false;
+            rdbQ1Opt2.Checked = false;
+            rdbQ1Opt3.Checked = false;
+            rdbQ1Opt4.Checked = false;
+
+            rdbQ2Opt1.Checked = false;
+            rdbQ2Opt2.Checked = false;
+            rdbQ2Opt3.Checked = false;
+            rdbQ2Opt4.Checked = false;
+
+            rdbQ3Opt1.Checked = false;
+            rdbQ3Opt2.Checked = false;
+            rdbQ3Opt3.Checked = false;
+            rdbQ3Opt4.Checked = false;
+        }
+
+        private void btnSubmit_Click(object sender, EventArgs e)
+        {
+            //Temporary variables to store the options selected by user
+            string ans1, ans2, ans3;
+
+            //Validation check if the user has selected any one of the options or not for Ques 1.
+            if (!(rdbQ1Opt1.Checked || rdbQ1Opt2.Checked || rdbQ1Opt3.Checked || rdbQ1Opt4.Checked))
+            {
+                MessageBox.Show("Please select answer for Question 1", "Error!");
+                return;
+            }
+
+            //Validation check if the user has selected any one of the options or not for Ques 2.
+            if (!(rdbQ2Opt1.Checked || rdbQ2Opt2.Checked || rdbQ2Opt3.Checked || rdbQ2Opt4.Checked))
+            {
+                MessageBox.Show("Please select answer for Question 2", "Error!");
+                return;
+            }
+
+            //Validation check if the user has selected any one of the options or not for Ques 3.
+            if (!(rdbQ3Opt1.Checked || rdbQ3Opt2.Checked || rdbQ3Opt3.Checked || rdbQ3Opt4.Checked))
+            {
+                MessageBox.Show("Please select answer for Question 3", "Error!");
+                return;
+            }
+
+            //Get the answers/options selected by the user for all the questions 
+            ans1 = gboxQues1.Controls.OfType<RadioButton>().First(r => r.Checked).Text;
+            ans2 = gboxQues2.Controls.OfType<RadioButton>().First(r => r.Checked).Text;
+            ans3 = gboxQues3.Controls.OfType<RadioButton>().First(r => r.Checked).Text;
+
+            //Check if any one of the answer is selected wrong. If any ques is wrong then restart the quiz else return to game
+            if (quesList[values[0]].answer != ans1 || quesList[values[1]].answer != ans2 || quesList[values[2]].answer != ans3)
+            {
+                MessageBox.Show("Incorrect answer provided. Please retry!", "Message!");
+                reloadQuiz();
+            }
+            else
+            {
+                //Set the Dialog Result to OK in order to continue the game on the Game Page Form1
+                MessageBox.Show("All answers are correct. The game will now begin.", "Bingo!");
+                this.DialogResult = DialogResult.OK;
+                this.Close();
+            }
+        }
+
+        void fillQuestionsOnForm()
+        {
+            //Gets the unique random number and store them in variable array "values" to laod the questions
+            var rng = new Random();
+            values = Enumerable.Range(0, quesList.Count).OrderBy(x => rng.Next()).ToArray();
+
+            //Set the question, option text on the page from the organised ques list (quesList) with random ques numbers
+            gboxQues1.Text = "Q1: " + quesList[values[0]].question;
+            rdbQ1Opt1.Text = quesList[values[0]].option1;
+            rdbQ1Opt2.Text = quesList[values[0]].option2;
+            rdbQ1Opt3.Text = quesList[values[0]].option3;
+            rdbQ1Opt4.Text = quesList[values[0]].option4;
+
+            gboxQues2.Text = "Q2: " + quesList[values[1]].question;
+            rdbQ2Opt1.Text = quesList[values[1]].option1;
+            rdbQ2Opt2.Text = quesList[values[1]].option2;
+            rdbQ2Opt3.Text = quesList[values[1]].option3;
+            rdbQ2Opt4.Text = quesList[values[1]].option4;
+
+            gboxQues3.Text = "Q3: " + quesList[values[2]].question;
+            rdbQ3Opt1.Text = quesList[values[2]].option1;
+            rdbQ3Opt2.Text = quesList[values[2]].option2;
+            rdbQ3Opt3.Text = quesList[values[2]].option3;
+            rdbQ3Opt4.Text = quesList[values[2]].option4;
+        }
+
+        void loadQuestions()
+        {
+            //Temporary variable to be used to set the ques, answer, options
+            quizQuestions tempQuestion;
+
+            //Temporary variable initialised and set with the actual questions, options, answer
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "Why do businesses use market research?";
+            tempQuestion.option1 = "To identify customer needs";
+            tempQuestion.option2 = "To sell goods and services";
+            tempQuestion.option3 = "To advertise";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "To identify customer needs";
+            quesList.Add(tempQuestion);                 //Temp question added to the organised list (quesList)
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What is the first step for a new business?";
+            tempQuestion.option1 = "To attract repeat purchases";
+            tempQuestion.option2 = "To attract trial purchases";
+            tempQuestion.option3 = "To attract advertising";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "To attract trial purchases";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What does desk research involve?";
+            tempQuestion.option1 = "Gathering new data";
+            tempQuestion.option2 = "Gathering existing data";
+            tempQuestion.option3 = "Conducting surveys";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "Gathering new data";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What is information collected about opinions and views called?";
+            tempQuestion.option1 = "Quantitative data";
+            tempQuestion.option2 = "Qualitative data";
+            tempQuestion.option3 = "Segmentation";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "Quantitative data";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "How does accurate market research help a business?";
+            tempQuestion.option1 = "By avoiding risk";
+            tempQuestion.option2 = "By reducing risk";
+            tempQuestion.option3 = "By eliminating risk";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "By reducing risk";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What does a market segment identify?";
+            tempQuestion.option1 = "All the products in the market";
+            tempQuestion.option2 = "Competitors";
+            tempQuestion.option3 = "Groups of people with similar buying habits";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "Groups of people with similar buying habits";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What can a market map be used to identify?";
+            tempQuestion.option1 = "Gaps in the market";
+            tempQuestion.option2 = "Competitors";
+            tempQuestion.option3 = "Groups of people with similar buying habits";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "Gaps in the market";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What is the name of an individual who is asked questions in a survey?";
+            tempQuestion.option1 = "A supplier";
+            tempQuestion.option2 = "A sample";
+            tempQuestion.option3 = "A respondent";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "A respondent";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "What are the total number of people selected to answer market research questions called?";
+            tempQuestion.option1 = "A supplier";
+            tempQuestion.option2 = "A sample";
+            tempQuestion.option3 = "A respondent";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "A supplier";
+            quesList.Add(tempQuestion);
+
+            tempQuestion = new quizQuestions();
+            tempQuestion.question = "Which of the following is an example of primary research?";
+            tempQuestion.option1 = "Internet research";
+            tempQuestion.option2 = "A focus group";
+            tempQuestion.option3 = "Company reports";
+            tempQuestion.option4 = "None of these";
+            tempQuestion.answer = "A focus group";
+            quesList.Add(tempQuestion);   
+
+            //More questions can be added in the similar way by just creating duplicates of above paragraph
+        }
+    }
+
+    //Class created to store the question, options and answers
+    public class quizQuestions
+    {
+        public string question;
+        public string option1, option2, option3, option4;
+        public string answer;
+    }
+}
+
+
+namespace Snake
+{
+    partial class QuizInterface
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(QuizInterface));
+            this.rdbQ1Opt1 = new System.Windows.Forms.RadioButton();
+            this.rdbQ1Opt2 = new System.Windows.Forms.RadioButton();
+            this.rdbQ1Opt3 = new System.Windows.Forms.RadioButton();
+            this.rdbQ1Opt4 = new System.Windows.Forms.RadioButton();
+            this.btnSubmit = new System.Windows.Forms.Button();
+            this.gboxQues1 = new System.Windows.Forms.GroupBox();
+            this.gboxQues2 = new System.Windows.Forms.GroupBox();
+            this.rdbQ2Opt3 = new System.Windows.Forms.RadioButton();
+            this.rdbQ2Opt1 = new System.Windows.Forms.RadioButton();
+            this.rdbQ2Opt2 = new System.Windows.Forms.RadioButton();
+            this.rdbQ2Opt4 = new System.Windows.Forms.RadioButton();
+            this.gboxQues3 = new System.Windows.Forms.GroupBox();
+            this.rdbQ3Opt3 = new System.Windows.Forms.RadioButton();
+            this.rdbQ3Opt1 = new System.Windows.Forms.RadioButton();
+            this.rdbQ3Opt2 = new System.Windows.Forms.RadioButton();
+            this.rdbQ3Opt4 = new System.Windows.Forms.RadioButton();
+            this.label1 = new System.Windows.Forms.Label();
+            this.gboxQues1.SuspendLayout();
+            this.gboxQues2.SuspendLayout();
+            this.gboxQues3.SuspendLayout();
+            this.SuspendLayout();
+            // 
+            // rdbQ1Opt1
+            // 
+            this.rdbQ1Opt1.AutoSize = true;
+            this.rdbQ1Opt1.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ1Opt1.Location = new System.Drawing.Point(11, 30);
+            this.rdbQ1Opt1.Name = "rdbQ1Opt1";
+            this.rdbQ1Opt1.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ1Opt1.TabIndex = 1;
+            this.rdbQ1Opt1.Text = "radioButton1";
+            this.rdbQ1Opt1.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ1Opt2
+            // 
+            this.rdbQ1Opt2.AutoSize = true;
+            this.rdbQ1Opt2.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ1Opt2.Location = new System.Drawing.Point(341, 30);
+            this.rdbQ1Opt2.Name = "rdbQ1Opt2";
+            this.rdbQ1Opt2.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ1Opt2.TabIndex = 2;
+            this.rdbQ1Opt2.Text = "radioButton2";
+            this.rdbQ1Opt2.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ1Opt3
+            // 
+            this.rdbQ1Opt3.AutoSize = true;
+            this.rdbQ1Opt3.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ1Opt3.Location = new System.Drawing.Point(11, 53);
+            this.rdbQ1Opt3.Name = "rdbQ1Opt3";
+            this.rdbQ1Opt3.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ1Opt3.TabIndex = 3;
+            this.rdbQ1Opt3.Text = "radioButton3";
+            this.rdbQ1Opt3.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ1Opt4
+            // 
+            this.rdbQ1Opt4.AutoSize = true;
+            this.rdbQ1Opt4.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ1Opt4.Location = new System.Drawing.Point(341, 53);
+            this.rdbQ1Opt4.Name = "rdbQ1Opt4";
+            this.rdbQ1Opt4.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ1Opt4.TabIndex = 4;
+            this.rdbQ1Opt4.Text = "radioButton4";
+            this.rdbQ1Opt4.UseVisualStyleBackColor = true;
+            // 
+            // btnSubmit
+            // 
+            this.btnSubmit.Location = new System.Drawing.Point(276, 345);
+            this.btnSubmit.Name = "btnSubmit";
+            this.btnSubmit.Size = new System.Drawing.Size(75, 23);
+            this.btnSubmit.TabIndex = 5;
+            this.btnSubmit.Text = "Submit";
+            this.btnSubmit.UseVisualStyleBackColor = true;
+            this.btnSubmit.Click += new System.EventHandler(this.btnSubmit_Click);
+            // 
+            // gboxQues1
+            // 
+            this.gboxQues1.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("gboxQues1.BackgroundImage")));
+            this.gboxQues1.Controls.Add(this.rdbQ1Opt3);
+            this.gboxQues1.Controls.Add(this.rdbQ1Opt1);
+            this.gboxQues1.Controls.Add(this.rdbQ1Opt2);
+            this.gboxQues1.Controls.Add(this.rdbQ1Opt4);
+            this.gboxQues1.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            this.gboxQues1.Location = new System.Drawing.Point(12, 38);
+            this.gboxQues1.Name = "gboxQues1";
+            this.gboxQues1.Size = new System.Drawing.Size(685, 83);
+            this.gboxQues1.TabIndex = 21;
+            this.gboxQues1.TabStop = false;
+            this.gboxQues1.Text = "Question 1: The first question will appear here";
+            // 
+            // gboxQues2
+            // 
+            this.gboxQues2.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("gboxQues2.BackgroundImage")));
+            this.gboxQues2.Controls.Add(this.rdbQ2Opt3);
+            this.gboxQues2.Controls.Add(this.rdbQ2Opt1);
+            this.gboxQues2.Controls.Add(this.rdbQ2Opt2);
+            this.gboxQues2.Controls.Add(this.rdbQ2Opt4);
+            this.gboxQues2.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            this.gboxQues2.Location = new System.Drawing.Point(12, 138);
+            this.gboxQues2.Name = "gboxQues2";
+            this.gboxQues2.Size = new System.Drawing.Size(685, 83);
+            this.gboxQues2.TabIndex = 22;
+            this.gboxQues2.TabStop = false;
+            this.gboxQues2.Text = "Question 2: The second question will appear here";
+            // 
+            // rdbQ2Opt3
+            // 
+            this.rdbQ2Opt3.AutoSize = true;
+            this.rdbQ2Opt3.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ2Opt3.Location = new System.Drawing.Point(11, 53);
+            this.rdbQ2Opt3.Name = "rdbQ2Opt3";
+            this.rdbQ2Opt3.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ2Opt3.TabIndex = 3;
+            this.rdbQ2Opt3.Text = "radioButton3";
+            this.rdbQ2Opt3.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ2Opt1
+            // 
+            this.rdbQ2Opt1.AutoSize = true;
+            this.rdbQ2Opt1.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ2Opt1.Location = new System.Drawing.Point(11, 30);
+            this.rdbQ2Opt1.Name = "rdbQ2Opt1";
+            this.rdbQ2Opt1.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ2Opt1.TabIndex = 1;
+            this.rdbQ2Opt1.Text = "radioButton1";
+            this.rdbQ2Opt1.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ2Opt2
+            // 
+            this.rdbQ2Opt2.AutoSize = true;
+            this.rdbQ2Opt2.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ2Opt2.Location = new System.Drawing.Point(341, 30);
+            this.rdbQ2Opt2.Name = "rdbQ2Opt2";
+            this.rdbQ2Opt2.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ2Opt2.TabIndex = 2;
+            this.rdbQ2Opt2.Text = "radioButton2";
+            this.rdbQ2Opt2.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ2Opt4
+            // 
+            this.rdbQ2Opt4.AutoSize = true;
+            this.rdbQ2Opt4.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ2Opt4.Location = new System.Drawing.Point(341, 53);
+            this.rdbQ2Opt4.Name = "rdbQ2Opt4";
+            this.rdbQ2Opt4.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ2Opt4.TabIndex = 4;
+            this.rdbQ2Opt4.Text = "radioButton4";
+            this.rdbQ2Opt4.UseVisualStyleBackColor = true;
+            // 
+            // gboxQues3
+            // 
+            this.gboxQues3.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("gboxQues3.BackgroundImage")));
+            this.gboxQues3.Controls.Add(this.rdbQ3Opt3);
+            this.gboxQues3.Controls.Add(this.rdbQ3Opt1);
+            this.gboxQues3.Controls.Add(this.rdbQ3Opt2);
+            this.gboxQues3.Controls.Add(this.rdbQ3Opt4);
+            this.gboxQues3.ForeColor = System.Drawing.SystemColors.ButtonHighlight;
+            this.gboxQues3.Location = new System.Drawing.Point(12, 239);
+            this.gboxQues3.Name = "gboxQues3";
+            this.gboxQues3.Size = new System.Drawing.Size(685, 83);
+            this.gboxQues3.TabIndex = 23;
+            this.gboxQues3.TabStop = false;
+            this.gboxQues3.Text = "Question 3: The third question will appear here";
+            // 
+            // rdbQ3Opt3
+            // 
+            this.rdbQ3Opt3.AutoSize = true;
+            this.rdbQ3Opt3.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ3Opt3.Location = new System.Drawing.Point(11, 53);
+            this.rdbQ3Opt3.Name = "rdbQ3Opt3";
+            this.rdbQ3Opt3.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ3Opt3.TabIndex = 3;
+            this.rdbQ3Opt3.Text = "radioButton3";
+            this.rdbQ3Opt3.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ3Opt1
+            // 
+            this.rdbQ3Opt1.AutoSize = true;
+            this.rdbQ3Opt1.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ3Opt1.Location = new System.Drawing.Point(11, 30);
+            this.rdbQ3Opt1.Name = "rdbQ3Opt1";
+            this.rdbQ3Opt1.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ3Opt1.TabIndex = 1;
+            this.rdbQ3Opt1.Text = "radioButton1";
+            this.rdbQ3Opt1.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ3Opt2
+            // 
+            this.rdbQ3Opt2.AutoSize = true;
+            this.rdbQ3Opt2.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ3Opt2.Location = new System.Drawing.Point(341, 30);
+            this.rdbQ3Opt2.Name = "rdbQ3Opt2";
+            this.rdbQ3Opt2.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ3Opt2.TabIndex = 2;
+            this.rdbQ3Opt2.Text = "radioButton2";
+            this.rdbQ3Opt2.UseVisualStyleBackColor = true;
+            // 
+            // rdbQ3Opt4
+            // 
+            this.rdbQ3Opt4.AutoSize = true;
+            this.rdbQ3Opt4.ForeColor = System.Drawing.SystemColors.WindowText;
+            this.rdbQ3Opt4.Location = new System.Drawing.Point(341, 53);
+            this.rdbQ3Opt4.Name = "rdbQ3Opt4";
+            this.rdbQ3Opt4.Size = new System.Drawing.Size(85, 17);
+            this.rdbQ3Opt4.TabIndex = 4;
+            this.rdbQ3Opt4.Text = "radioButton4";
+            this.rdbQ3Opt4.UseVisualStyleBackColor = true;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label1.Location = new System.Drawing.Point(12, 9);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(516, 16);
+            this.label1.TabIndex = 24;
+            this.label1.Text = "Please answer below quiz questions correctly in order to restart the game:";
+            // 
+            // QuizInterface
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BackColor = System.Drawing.SystemColors.Control;
+            this.BackgroundImage = ((System.Drawing.Image)(resources.GetObject("$this.BackgroundImage")));
+            this.ClientSize = new System.Drawing.Size(723, 381);
+            this.Controls.Add(this.label1);
+            this.Controls.Add(this.gboxQues3);
+            this.Controls.Add(this.gboxQues2);
+            this.Controls.Add(this.gboxQues1);
+            this.Controls.Add(this.btnSubmit);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.Fixed3D;
+            this.MaximizeBox = false;
+            this.Name = "QuizInterface";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "Quiz Window";
+            this.gboxQues1.ResumeLayout(false);
+            this.gboxQues1.PerformLayout();
+            this.gboxQues2.ResumeLayout(false);
+            this.gboxQues2.PerformLayout();
+            this.gboxQues3.ResumeLayout(false);
+            this.gboxQues3.PerformLayout();
+            this.ResumeLayout(false);
+            this.PerformLayout();
+
+        }
+
+        #endregion
+
+        private System.Windows.Forms.RadioButton rdbQ1Opt1;
+        private System.Windows.Forms.RadioButton rdbQ1Opt2;
+        private System.Windows.Forms.RadioButton rdbQ1Opt3;
+        private System.Windows.Forms.RadioButton rdbQ1Opt4;
+        private System.Windows.Forms.Button btnSubmit;
+        private System.Windows.Forms.GroupBox gboxQues1;
+        private System.Windows.Forms.GroupBox gboxQues2;
+        private System.Windows.Forms.RadioButton rdbQ2Opt3;
+        private System.Windows.Forms.RadioButton rdbQ2Opt1;
+        private System.Windows.Forms.RadioButton rdbQ2Opt2;
+        private System.Windows.Forms.RadioButton rdbQ2Opt4;
+        private System.Windows.Forms.GroupBox gboxQues3;
+        private System.Windows.Forms.RadioButton rdbQ3Opt3;
+        private System.Windows.Forms.RadioButton rdbQ3Opt1;
+        private System.Windows.Forms.RadioButton rdbQ3Opt2;
+        private System.Windows.Forms.RadioButton rdbQ3Opt4;
+        private System.Windows.Forms.Label label1;
+
+    }
+}
+
+
+namespace Snake
+{
+    public enum Direction
+    {
+        Up,
+        Down,
+        Left,
+        Right
+    };
+
+    public class Settings
+    {
+        public static int Width { get; set; }
+        public static int Height { get; set; }
+        public static int Speed { get; set; }
+        public static int Score { get; set; }
+        public static int Points { get; set; }
+        public static bool GameOver { get; set; }
+        public static Direction direction { get; set; }
+
+        public Settings()
+        {
+            Width = 16;
+            Height = 16;
+            Speed = 16;
+            Score = 0;
+            Points = 100;
+            GameOver = false;
+            direction = Direction.Down;
+        }
+    }
+
+
+}
+code
+
